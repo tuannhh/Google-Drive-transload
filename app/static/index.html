@@ -1,0 +1,300 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Google Drive Transload</title>
+<style>
+  :root {
+    --bg: #f5f6f8; --card: #ffffff; --text: #1d2330; --muted: #667085; --border: #e3e6eb;
+    --primary: #1a73e8; --primary-text: #fff; --ok: #188038; --warn: #b06000; --warn-bg: #fef7e0;
+    --err: #c5221f; --err-bg: #fce8e6; --bar: #e8eaed; --code: #f1f3f4;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #14161a; --card: #1e2127; --text: #e6e8eb; --muted: #9aa0a6; --border: #30343b;
+      --primary: #8ab4f8; --primary-text: #0b1a33; --ok: #81c995; --warn: #fdd663; --warn-bg: #3a3212;
+      --err: #f28b82; --err-bg: #3c1f1e; --bar: #30343b; --code: #2a2e35;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text);
+         font: 14px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  .wrap { max-width: 1040px; margin: 0 auto; padding: 20px 16px 60px; }
+  h1 { font-size: 22px; margin: 0 0 4px; }
+  h2 { font-size: 16px; margin: 0 0 12px; }
+  .sub { color: var(--muted); margin: 0 0 20px; }
+  .card { background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 16px; margin-bottom: 16px; }
+  .row { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; }
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  @media (max-width: 700px) { .grid2 { grid-template-columns: 1fr; } }
+  label.f { display: block; font-weight: 600; margin: 12px 0 4px; }
+  input[type=text], select, textarea { width: 100%; padding: 8px 10px; border: 1px solid var(--border); border-radius: 6px;
+         background: var(--card); color: var(--text); font: inherit; }
+  textarea { min-height: 120px; font-family: ui-monospace, Consolas, monospace; font-size: 12.5px; }
+  button, .btn { display: inline-flex; align-items: center; gap: 6px; padding: 7px 14px; border-radius: 6px; border: 1px solid var(--border);
+         background: var(--card); color: var(--text); font: inherit; cursor: pointer; text-decoration: none; }
+  button.primary, .btn.primary { background: var(--primary); color: var(--primary-text); border-color: var(--primary); font-weight: 600; }
+  button.danger { color: var(--err); }
+  button:disabled { opacity: .5; cursor: not-allowed; }
+  .mode { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  @media (max-width: 700px) { .mode { grid-template-columns: 1fr; } }
+  .mode label { border: 1px solid var(--border); border-radius: 8px; padding: 12px; cursor: pointer; display: flex; gap: 10px; }
+  .mode label:has(input:checked) { border-color: var(--primary); box-shadow: 0 0 0 1px var(--primary); }
+  .mode small { color: var(--muted); display: block; }
+  .acc { display: flex; justify-content: space-between; gap: 12px; padding: 10px 0; border-top: 1px solid var(--border); flex-wrap: wrap; }
+  .acc:first-of-type { border-top: 0; }
+  .bar { height: 8px; background: var(--bar); border-radius: 4px; overflow: hidden; min-width: 160px; }
+  .bar > div { height: 100%; background: var(--primary); }
+  .bar.warn > div { background: var(--warn); }
+  .muted { color: var(--muted); }
+  .alert { padding: 10px 12px; border-radius: 6px; margin: 10px 0; }
+  .alert.warn { background: var(--warn-bg); color: var(--warn); }
+  .alert.err { background: var(--err-bg); color: var(--err); }
+  .badge { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 12px; font-weight: 600; background: var(--code); }
+  .badge.running, .badge.scanning { color: var(--primary); }
+  .badge.completed { color: var(--ok); }
+  .badge.completed_with_errors, .badge.awaiting_confirm, .badge.throttled, .badge.paused_quota { color: var(--warn); }
+  .badge.error, .badge.cancelled { color: var(--err); }
+  .job { border-top: 1px solid var(--border); padding: 14px 0; }
+  .job:first-of-type { border-top: 0; }
+  .stats { display: flex; gap: 18px; flex-wrap: wrap; color: var(--muted); font-size: 13px; margin: 6px 0; }
+  .stats b { color: var(--text); }
+  pre.log { background: var(--code); padding: 10px; border-radius: 6px; max-height: 300px; overflow: auto; font-size: 12px; white-space: pre-wrap; word-break: break-all; }
+  code { background: var(--code); padding: 1px 5px; border-radius: 4px; }
+  .hidden { display: none !important; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Google Drive Transload</h1>
+  <p class="sub">Chuyển dữ liệu giữa các tài khoản Google Drive bằng copy phía server Google – chạy nền trong Docker, tự chạy tiếp sau khi khởi động lại.</p>
+
+  <div id="cfgWarn" class="alert err hidden"></div>
+  <div id="flash" class="alert hidden"></div>
+
+  <div class="card">
+    <div class="row" style="justify-content:space-between">
+      <h2 style="margin:0">Tài khoản Google đã đăng nhập</h2>
+      <a class="btn primary" href="/oauth/start">+ Đăng nhập tài khoản Google</a>
+    </div>
+    <div id="accounts" class="muted" style="margin-top:8px">Đang tải…</div>
+  </div>
+
+  <div class="card">
+    <h2>Tạo job chuyển dữ liệu</h2>
+    <div class="mode">
+      <label><input type="radio" name="mode" value="public" checked>
+        <span><b>A. Tôi chỉ có link chia sẻ công khai</b>
+        <small>Chỉ cần đăng nhập tài khoản <b>đích</b>. Link phải ở chế độ "Bất kỳ ai có đường liên kết".</small></span></label>
+      <label><input type="radio" name="mode" value="account">
+        <span><b>B. Tôi đăng nhập được tài khoản nguồn</b>
+        <small>Đăng nhập cả tài khoản <b>nguồn</b> và <b>đích</b>. Có thể chuyển toàn bộ My Drive.</small></span></label>
+    </div>
+
+    <div class="grid2">
+      <div id="srcBox" class="hidden">
+        <label class="f">Tài khoản nguồn (chuyển đi)</label>
+        <select id="srcAcc"></select>
+        <label style="display:block;margin-top:8px"><input type="checkbox" id="wholeDrive"> Chuyển <b>toàn bộ My Drive</b> của tài khoản nguồn</label>
+      </div>
+      <div>
+        <label class="f">Tài khoản đích (nhận dữ liệu)</label>
+        <select id="destAcc"></select>
+        <div id="destQuota" class="muted" style="margin-top:4px"></div>
+      </div>
+    </div>
+
+    <label class="f">Link Google Drive (mỗi dòng một link – file hoặc thư mục)</label>
+    <textarea id="links" placeholder="https://drive.google.com/drive/folders/xxxxxxxx&#10;https://drive.google.com/file/d/yyyyyyyy/view?usp=sharing"></textarea>
+    <div class="row" style="margin-top:8px">
+      <label class="btn">📄 Import Excel/CSV<input type="file" id="xls" accept=".xlsx,.xlsm,.xls,.csv,.txt" hidden></label>
+      <span id="xlsName" class="muted"></span>
+      <button id="btnCheck">Kiểm tra link</button>
+      <span id="checkRes" class="muted"></span>
+    </div>
+
+    <div class="grid2">
+      <div>
+        <label class="f">Tên thư mục sẽ tạo ở tài khoản đích</label>
+        <input type="text" id="rootName" placeholder="Mặc định: Transload &lt;ngày giờ&gt;">
+      </div>
+      <div>
+        <label class="f">Đặt vào thư mục đích có sẵn (tuỳ chọn – link thư mục)</label>
+        <input type="text" id="destFolder" placeholder="Để trống = My Drive">
+      </div>
+    </div>
+    <label style="display:block;margin:12px 0"><input type="checkbox" id="autoStart" checked> Tự động bắt đầu chuyển sau khi quét xong (nếu đủ dung lượng)</label>
+    <button class="primary" id="btnCreate">Tạo job &amp; bắt đầu quét</button>
+  </div>
+
+  <div class="card">
+    <h2>Các job</h2>
+    <div id="jobs" class="muted">Chưa có job nào.</div>
+  </div>
+</div>
+
+<script>
+const $ = s => document.querySelector(s);
+let accounts = [], parsed = null, openLogs = new Set();
+
+const STATUS = {
+  scanning: "Đang quét", awaiting_confirm: "Chờ xác nhận", running: "Đang chuyển", throttled: "Tạm nghỉ (giới hạn Google)",
+  paused: "Tạm dừng", paused_quota: "Dừng – hết dung lượng", completed: "Hoàn tất", completed_with_errors: "Hoàn tất (có lỗi)",
+  cancelled: "Đã huỷ", error: "Lỗi"
+};
+
+function esc(s) { return String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c])); }
+function flash(msg, kind = "warn") { const f = $("#flash"); f.className = "alert " + kind; f.textContent = msg; }
+async function api(url, opts = {}) {
+  const r = await fetch(url, opts);
+  const ct = r.headers.get("content-type") || "";
+  const body = ct.includes("json") ? await r.json() : await r.text();
+  if (!r.ok) throw new Error(body.detail || body || r.statusText);
+  return body;
+}
+function mode() { return document.querySelector("input[name=mode]:checked").value; }
+
+async function loadConfig() {
+  const c = await api("/api/config");
+  if (!c.configured) {
+    const w = $("#cfgWarn"); w.classList.remove("hidden");
+    w.innerHTML = `Chưa cấu hình <code>GOOGLE_CLIENT_ID</code>/<code>GOOGLE_CLIENT_SECRET</code> trong file <code>.env</code>. ` +
+      `Xem README. Redirect URI cần khai báo: <code>${esc(c.redirect_uri)}</code>`;
+  }
+  const p = new URLSearchParams(location.search);
+  if (p.get("login_ok")) flash("Đã đăng nhập: " + p.get("login_ok"), "warn");
+  if (p.get("login_error")) flash("Đăng nhập thất bại: " + p.get("login_error"), "err");
+  if (p.toString()) history.replaceState(null, "", "/");
+}
+
+async function loadAccounts() {
+  accounts = await api("/api/accounts");
+  const box = $("#accounts");
+  if (!accounts.length) { box.innerHTML = "Chưa có tài khoản nào. Bấm “Đăng nhập tài khoản Google”."; }
+  else box.innerHTML = accounts.map(a => {
+    const pct = a.ok && a.limit ? Math.min(100, a.usage / a.limit * 100) : 0;
+    return `<div class="acc"><div><b>${esc(a.email)}</b> <span class="muted">${esc(a.display_name || "")}</span><br>
+      ${a.ok ? `<span class="muted">Đã dùng ${a.usage_h} / ${a.limit_h} · còn trống <b>${a.free_h}</b></span>`
+             : `<span style="color:var(--err)">${esc(a.error)}</span>`}</div>
+      <div class="row">${a.ok && a.limit ? `<div class="bar ${pct > 90 ? "warn" : ""}"><div style="width:${pct}%"></div></div>` : ""}
+      <button class="danger" onclick="delAccount(${a.id})">Xoá</button></div></div>`;
+  }).join("");
+  for (const sel of [$("#srcAcc"), $("#destAcc")]) {
+    const cur = sel.value;
+    sel.innerHTML = `<option value="">— chọn tài khoản —</option>` +
+      accounts.map(a => `<option value="${a.id}">${esc(a.email)}</option>`).join("");
+    if (cur) sel.value = cur;
+  }
+  showDestQuota();
+}
+async function delAccount(id) {
+  if (!confirm("Xoá tài khoản khỏi tool? (không ảnh hưởng dữ liệu trên Drive)")) return;
+  try { await api("/api/accounts/" + id, {method: "DELETE"}); loadAccounts(); } catch (e) { flash(e.message, "err"); }
+}
+function showDestQuota() {
+  const a = accounts.find(x => String(x.id) === $("#destAcc").value);
+  $("#destQuota").textContent = a && a.ok ? `Còn trống: ${a.free_h} / ${a.limit_h}` : "";
+}
+
+async function parseLinks() {
+  const fd = new FormData();
+  fd.append("text", $("#links").value);
+  const f = $("#xls").files[0];
+  if (f) fd.append("file", f);
+  parsed = await api("/api/parse-links", {method: "POST", body: fd});
+  $("#checkRes").innerHTML = `✔ <b>${parsed.refs.length}</b> link hợp lệ` +
+    (parsed.bad.length ? ` · <span style="color:var(--err)">✘ ${parsed.bad.length} dòng không nhận dạng được: ${esc(parsed.bad.slice(0,3).join(" | "))}${parsed.bad.length>3?"…":""}</span>` : "");
+  return parsed;
+}
+
+async function createJob() {
+  const btn = $("#btnCreate"); btn.disabled = true;
+  try {
+    const p = await parseLinks();
+    const body = {
+      mode: mode(), dest_account_id: +$("#destAcc").value || 0,
+      source_account_id: mode() === "account" ? (+$("#srcAcc").value || null) : null,
+      refs: p.refs, whole_drive: mode() === "account" && $("#wholeDrive").checked,
+      dest_folder: $("#destFolder").value, dest_root_name: $("#rootName").value, auto_start: $("#autoStart").checked
+    };
+    if (!body.dest_account_id) throw new Error("Hãy chọn tài khoản đích (đăng nhập trước nếu chưa có).");
+    if (body.mode === "account" && !body.source_account_id) throw new Error("Hãy chọn tài khoản nguồn.");
+    if (!body.refs.length && !body.whole_drive) throw new Error("Chưa có link hợp lệ nào.");
+    const r = await api("/api/jobs", {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify(body)});
+    flash(`Đã tạo job #${r.id}. Tool đang quét dữ liệu nguồn và kiểm tra dung lượng đích…`);
+    $("#links").value = ""; $("#xls").value = ""; $("#xlsName").textContent = ""; $("#checkRes").textContent = "";
+    loadJobs();
+  } catch (e) { flash(e.message, "err"); }
+  finally { btn.disabled = false; }
+}
+
+function jobButtons(j) {
+  const b = [], s = j.status;
+  const act = (a, label, cls = "") => b.push(`<button class="${cls}" onclick="jobAction(${j.id},'${a}')">${label}</button>`);
+  if (s === "awaiting_confirm") act("start", j.insufficient ? "Vẫn chạy (tới khi đầy)" : "Bắt đầu chuyển", "primary");
+  if (["awaiting_confirm", "paused_quota"].includes(s)) act("recheck", "Kiểm tra lại dung lượng");
+  if (["scanning", "running", "throttled", "awaiting_confirm"].includes(s)) act("pause", "Tạm dừng");
+  if (["paused", "paused_quota", "error", "throttled"].includes(s)) act("resume", "Tiếp tục", "primary");
+  if (j.stats.files_failed || j.stats.folders_failed) act("retry_failed", `Thử lại ${j.stats.files_failed + j.stats.folders_failed} mục lỗi`);
+  if (!["completed", "completed_with_errors", "cancelled"].includes(s)) act("cancel", "Huỷ", "danger");
+  b.push(`<a class="btn" href="/api/jobs/${j.id}/log" target="_blank">⬇ Log .txt</a>`);
+  b.push(`<button onclick="toggleLog(${j.id})">${openLogs.has(j.id) ? "Ẩn log" : "Xem log"}</button>`);
+  if (!["scanning", "running"].includes(s)) b.push(`<button class="danger" onclick="delJob(${j.id})">Xoá job</button>`);
+  return b.join(" ");
+}
+
+async function loadJobs() {
+  const jobs = await api("/api/jobs");
+  const box = $("#jobs");
+  if (!jobs.length) { box.innerHTML = "Chưa có job nào."; return; }
+  box.innerHTML = jobs.map(j => {
+    const st = j.stats, pct = st.bytes_total ? st.bytes_done / st.bytes_total * 100 : (st.files_total ? st.files_done / st.files_total * 100 : 0);
+    const warn = j.insufficient || ["awaiting_confirm", "paused_quota", "throttled"].includes(j.status);
+    return `<div class="job"><div class="row" style="justify-content:space-between">
+        <div><b>#${j.id} ${esc(j.name)}</b> <span class="badge ${j.status}">${STATUS[j.status] || j.status}</span></div>
+        <span class="muted">${j.mode === "public" ? "Link công khai" : esc(j.source_account_email || "")} → ${esc(j.dest_account_email || "")}</span></div>
+      <div class="${warn ? "alert " + (j.insufficient || j.status === "paused_quota" ? "err" : "warn") : "muted"}">${esc(j.status_message || "")}</div>
+      <div class="bar" style="margin:6px 0"><div style="width:${pct.toFixed(1)}%"></div></div>
+      <div class="stats"><span>File: <b>${st.files_done}</b>/${st.files_total}</span>
+        <span>Dung lượng: <b>${st.bytes_done_h}</b>/${st.bytes_total_h}</span>
+        <span>Thư mục: ${st.folders_done}/${st.folders_total}</span>
+        <span>Lỗi: <b style="color:var(--err)">${st.files_failed + st.folders_failed}</b></span>
+        <span>Bỏ qua: ${st.files_skipped}</span>
+        <span>Đích còn trống: ${esc(j.dest_free_h)}</span>
+        ${j.dest_root_id ? `<a href="https://drive.google.com/drive/folders/${j.dest_root_id}" target="_blank">Mở thư mục đích ↗</a>` : ""}</div>
+      <div class="row">${jobButtons(j)}</div>
+      ${openLogs.has(j.id) ? `<pre class="log" id="log${j.id}">Đang tải…</pre>` : ""}</div>`;
+  }).join("");
+  for (const id of openLogs) loadLog(id);
+}
+async function loadLog(id) {
+  const el = document.getElementById("log" + id); if (!el) return;
+  const r = await api(`/api/jobs/${id}/log/tail?lines=120`);
+  el.textContent = r.lines.join("\n") || "(chưa có log)"; el.scrollTop = el.scrollHeight;
+}
+function toggleLog(id) { openLogs.has(id) ? openLogs.delete(id) : openLogs.add(id); loadJobs(); }
+async function jobAction(id, action) {
+  if (action === "cancel" && !confirm("Huỷ job này? Dữ liệu đã copy vẫn giữ nguyên ở tài khoản đích.")) return;
+  try { await api(`/api/jobs/${id}/action`, {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify({action})}); loadJobs(); }
+  catch (e) { flash(e.message, "err"); }
+}
+async function delJob(id) {
+  if (!confirm("Xoá job khỏi danh sách? (không xoá dữ liệu trên Drive, file log .txt vẫn giữ)")) return;
+  try { await api("/api/jobs/" + id, {method: "DELETE"}); loadJobs(); } catch (e) { flash(e.message, "err"); }
+}
+
+document.querySelectorAll("input[name=mode]").forEach(r => r.addEventListener("change", () =>
+  $("#srcBox").classList.toggle("hidden", mode() !== "account")));
+$("#destAcc").addEventListener("change", showDestQuota);
+$("#xls").addEventListener("change", () => { $("#xlsName").textContent = $("#xls").files[0]?.name || ""; parseLinks().catch(e => flash(e.message, "err")); });
+$("#btnCheck").addEventListener("click", () => parseLinks().catch(e => flash(e.message, "err")));
+$("#btnCreate").addEventListener("click", createJob);
+
+loadConfig().then(loadAccounts).catch(e => flash(e.message, "err"));
+loadJobs().catch(() => {});
+setInterval(() => loadJobs().catch(() => {}), 4000);
+setInterval(() => loadAccounts().catch(() => {}), 60000);
+</script>
+</body>
+</html>

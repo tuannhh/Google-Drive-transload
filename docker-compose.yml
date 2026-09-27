@@ -1,0 +1,10 @@
+services:
+  transload:
+    build: .
+    container_name: gdrive-transload
+    env_file: .env
+    ports:
+      - "${PORT:-8080}:8080"
+    volumes:
+      - ./data:/data          # DB + log .txt nằm ở đây (giữ lại khi rebuild)
+    restart: unless-stopped   # tự chạy lại khi Docker/VPS khởi động lại
