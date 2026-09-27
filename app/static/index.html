@@ -63,6 +63,12 @@
   pre.log { background: var(--code); padding: 10px; border-radius: 6px; max-height: 300px; overflow: auto; font-size: 12px; white-space: pre-wrap; word-break: break-all; }
   code { background: var(--code); padding: 1px 5px; border-radius: 4px; }
   .hidden { display: none !important; }
+  footer.donate { text-align: center; padding: 18px 16px; margin-top: 8px; border: 1px dashed var(--border);
+         border-radius: 10px; background: var(--card); display: grid; gap: 6px; }
+  footer.donate .acct { font-size: 15px; display: flex; gap: 10px; justify-content: center; align-items: center; flex-wrap: wrap; }
+  footer.donate button { padding: 3px 10px; font-size: 12px; }
+  footer.donate a { color: var(--primary); }
+  .small { font-size: 12px; }
 </style>
 </head>
 <body>
@@ -132,6 +138,13 @@
     <h2>Các job</h2>
     <div id="jobs" class="muted">Chưa có job nào.</div>
   </div>
+
+  <footer class="donate">
+    <div>☕ <b>Nếu thấy tool hữu ích, bạn có thể tặng tôi một cốc cafe</b> · <i>If you find this tool useful, you can buy me a coffee</i></div>
+    <div class="acct"><b>00004657001</b> – TPBank (Tienphong Bank) – <b>BUI MINH TUAN</b>
+      <button type="button" id="btnCopyAcct" title="Sao chép số tài khoản / Copy account number">Sao chép / Copy</button></div>
+    <div class="muted small">Google Drive Transload · <a href="https://github.com/tuannhh/Google-Drive-transload" target="_blank" rel="noopener">GitHub</a> · Cảm ơn bạn! Thank you! ❤️</div>
+  </footer>
 </div>
 
 <script>
@@ -290,6 +303,11 @@ $("#destAcc").addEventListener("change", showDestQuota);
 $("#xls").addEventListener("change", () => { $("#xlsName").textContent = $("#xls").files[0]?.name || ""; parseLinks().catch(e => flash(e.message, "err")); });
 $("#btnCheck").addEventListener("click", () => parseLinks().catch(e => flash(e.message, "err")));
 $("#btnCreate").addEventListener("click", createJob);
+$("#btnCopyAcct").addEventListener("click", async e => {
+  try { await navigator.clipboard.writeText("00004657001"); e.target.textContent = "Đã sao chép ✓ / Copied ✓"; }
+  catch { e.target.textContent = "00004657001"; }
+  setTimeout(() => e.target.textContent = "Sao chép / Copy", 2000);
+});
 
 loadConfig().then(loadAccounts).catch(e => flash(e.message, "err"));
 loadJobs().catch(() => {});

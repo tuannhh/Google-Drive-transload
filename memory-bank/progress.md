@@ -12,6 +12,7 @@
 - [x] Pause / Resume / Cancel / Retry failed / Xoá job.
 - [x] Basic Auth tuỳ chọn (APP_PASSWORD).
 - [x] README song ngữ: `README.md` (English, mặc định trên GitHub) + `README.vi.md` (Tiếng Việt), có khối donate ở đầu và cuối (2026-09-27).
+- [x] Footer giao diện có thông tin donate song ngữ + nút sao chép số tài khoản (2026-09-27).
 - [x] 9 test pytest (links, Excel, luồng đầy đủ với FakeDrive, thiếu dung lượng, throttle→resume) – PASS.
 - [x] Đã chạy thử container, UI load OK, kiểm tra link OK, đường lỗi token OK.
 
